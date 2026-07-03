@@ -70,6 +70,22 @@ h1 {
   gap: 10px;
 }
 
+.nearest-stop-box {
+  background: #eef7f4;
+  border: 1px solid #1f6f5c;
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  font-size: 17px;
+  font-weight: bold;
+}
+
+.add-here-prompt {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .text-input {
   padding: 14px;
   border-radius: 12px;

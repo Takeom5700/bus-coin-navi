@@ -136,9 +136,23 @@ function stopBoardingWatch() {
   boardDetector = null;
 }
 
+let lastKnownPos = null; // { lat, lng } 直近のGPS取得結果(手動選択の距離表示等でも再利用)
+const NEARBY_THRESHOLD_M = 2000; // これより遠いと「近くに登録済みバス停がない」扱い
+
 function renderBoardingDetectScreen() {
-  const title = h("h1", { text: t("detecting") });
-  const status = h("div", { className: "scan-status", text: "📍" });
+  const title = h("h1", { text: t("nearestStopLabel") });
+
+  const nearestBox = h("div", { className: "nearest-stop-box", text: "…" });
+
+  const refreshBtn = h("button", {
+    className: "primary-btn",
+    text: t("refreshButton"),
+    onclick: () => checkNearestNow(nearestBox, addPrompt),
+  });
+
+  const addPrompt = h("div", { className: "add-here-prompt" });
+
+  const subStatus = h("div", { className: "hint scan-status", text: t("detecting") });
 
   const manualLink = h("button", {
     className: "back-link",
@@ -150,19 +164,56 @@ function renderBoardingDetectScreen() {
     },
   });
 
-  const addStopLink = h("button", {
-    className: "back-link",
-    text: t("addStopLink"),
+  const screenEl = makeScreen([title, nearestBox, refreshBtn, addPrompt, subStatus, manualLink]);
+
+  // 1. まず即座に「今一番近い登録済みバス停」を表示する
+  checkNearestNow(nearestBox, addPrompt);
+  // 2. 裏側では引き続き「静止→発車」の自動確定ロジックも動かしておく
+  setTimeout(() => startBoardingWatch(subStatus), 0);
+
+  return screenEl;
+}
+
+function checkNearestNow(nearestBox, addPrompt) {
+  nearestBox.textContent = "📍 …";
+  addPrompt.innerHTML = "";
+  if (!navigator.geolocation) {
+    nearestBox.textContent = t("locationDenied");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      lastKnownPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const { stop, distanceMeters: dist } = findNearestStop(lastKnownPos.lat, lastKnownPos.lng, getAllStops());
+      const km = (dist / 1000).toFixed(1);
+
+      if (dist > NEARBY_THRESHOLD_M) {
+        nearestBox.textContent = `😕 ${t("noNearbyStop")}`;
+        renderAddHerePrompt(addPrompt);
+      } else {
+        nearestBox.textContent = `📍 ${stopLabel(stop)}（約${km}${t("kmUnit")}）`;
+      }
+    },
+    () => {
+      nearestBox.textContent = t("locationDenied");
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function renderAddHerePrompt(addPrompt) {
+  const text = h("div", { className: "hint", text: t("addThisLocationPrompt") });
+  const btn = h("button", {
+    className: "primary-btn",
+    text: t("addStopSave"),
     onclick: () => {
       stopBoardingWatch();
       state.screen = "add-stop";
       render();
     },
   });
-
-  const screenEl = makeScreen([title, status, manualLink, addStopLink]);
-  setTimeout(() => startBoardingWatch(status), 0);
-  return screenEl;
+  addPrompt.appendChild(text);
+  addPrompt.appendChild(btn);
 }
 
 // --- (テスト用)現在地をバス停として登録する画面 ---
@@ -175,14 +226,18 @@ function renderAddStopScreen() {
   nameInput.placeholder = t("addStopNamePrompt");
   nameInput.className = "text-input";
 
-  let currentPos = null;
+  let currentPos = lastKnownPos;
+  if (currentPos) {
+    status.textContent = `📍 ${currentPos.lat.toFixed(5)}, ${currentPos.lng.toFixed(5)}`;
+  }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      lastKnownPos = currentPos;
       status.textContent = `📍 ${currentPos.lat.toFixed(5)}, ${currentPos.lng.toFixed(5)}`;
     },
     () => {
-      status.textContent = t("locationDenied");
+      if (!currentPos) status.textContent = t("locationDenied");
     },
     { enableHighAccuracy: true, timeout: 15000 }
   );
@@ -439,10 +494,23 @@ function renderManualStopScreen(purpose) {
     contentEl = h("div", { className: "manual-tab-content" }, [prompt, grid]);
   } else {
     const list = h("div", { className: "stop-list" });
-    getAllStops().filter((s) => s.id !== excludeId).forEach((stop) => {
+    let stops = getAllStops().filter((s) => s.id !== excludeId);
+
+    // 現在地が分かっていれば、近い順に並べ替えて距離も表示する
+    if (lastKnownPos) {
+      stops = stops
+        .map((s) => ({ s, d: distanceMeters(lastKnownPos.lat, lastKnownPos.lng, s.lat, s.lng) }))
+        .sort((a, b) => a.d - b.d)
+        .map(({ s, d }) => ({ ...s, _distanceM: d }));
+    }
+
+    stops.forEach((stop) => {
+      const distText = typeof stop._distanceM === "number"
+        ? `（約${(stop._distanceM / 1000).toFixed(1)}${t("kmUnit")}）`
+        : "";
       const btn = h("button", {
         className: "stop-btn",
-        text: stopLabel(stop) + (stop.custom ? " 📍" : ""),
+        text: stopLabel(stop) + (stop.custom ? " 📍" : "") + distText,
         onclick: () => confirmStopSelection(purpose, stop.id),
       });
       list.appendChild(btn);
