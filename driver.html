@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>【運転手用テストツール】QR表示 - Bus Coin Navi</title>
+<link rel="stylesheet" href="style.css" />
+<style>
+  body { background: #222; }
+  #app { background: #fff; }
+  .driver-tool { padding: 24px; text-align: center; }
+  .qr-wrap { display: flex; justify-content: center; margin: 20px 0; }
+  select { font-size: 16px; padding: 10px; border-radius: 8px; width: 100%; }
+  .note { color: #888; font-size: 12px; margin-top: 12px; }
+  .lang-switch { display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; }
+  .lang-switch button {
+    padding: 8px 16px; border-radius: 20px; border: 1px solid #1f6f5c;
+    background: #fff; color: #1f6f5c; font-size: 14px; cursor: pointer;
+  }
+  .lang-switch button.active { background: #1f6f5c; color: #fff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="driver-tool">
+    <div class="lang-switch">
+      <button id="langJa" class="active">日本語</button>
+      <button id="langEn">English</button>
+    </div>
+    <h2 id="titleText">🚌 【テスト用】運転手側 QR表示</h2>
+    <p id="descText">本番では運転席付近に掲示するQRコードです。<br>このQRコードをスマホのBus Coin Naviでスキャンしてテストできます。</p>
+    <select id="stopSelect"></select>
+    <div class="qr-wrap" id="qrWrap"></div>
+    <div class="note" id="noteText">同じネットワーク内の別端末から、この画面をスマホのブラウザで表示してスキャンするか、PC画面を別のスマホのカメラで直接映して読み取ってください。</div>
+  </div>
+</div>
+<script src="data.js"></script>
+<script src="lib/qrcode.js"></script>
+<script src="driver.js"></script>
+</body>
+</html>
