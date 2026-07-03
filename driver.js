@@ -27,11 +27,11 @@ const noteText = document.getElementById("noteText");
 
 function populateStops() {
   select.innerHTML = "";
-  STOPS.forEach((stop) => {
+  getAllStops().forEach((stop) => {
     const opt = document.createElement("option");
     opt.value = stop.id;
     const label = stop.name[driverLang] || stop.name.ja;
-    opt.textContent = `${label} (${stop.id})`;
+    opt.textContent = `${label}${stop.custom ? " 📍" : ""} (${stop.id})`;
     select.appendChild(opt);
   });
 }

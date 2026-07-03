@@ -47,7 +47,7 @@ function createBoardingDetector(stops) {
       return { status: "waiting", stopId: lastStationaryStopId, speedMs: null };
     }
 
-    const { stop, distanceMeters: dist } = findNearestStop(sample.lat, sample.lng);
+    const { stop, distanceMeters: dist } = findNearestStop(sample.lat, sample.lng, stops);
 
     // 走行速度未満(徒歩〜駆け足程度も含む)で、かつ停留所の近くにいる間は候補を更新し続ける
     if (speedMs < BOARD_MOVING_SPEED_MS && dist < BOARD_STOP_RADIUS_M) {

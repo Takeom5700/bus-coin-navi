@@ -36,6 +36,9 @@ function render() {
     case "manual-board":
       screenEl = renderManualStopScreen("board");
       break;
+    case "add-stop":
+      screenEl = renderAddStopScreen();
+      break;
     case "riding":
       screenEl = renderRidingScreen();
       break;
@@ -147,9 +150,66 @@ function renderBoardingDetectScreen() {
     },
   });
 
-  const screenEl = makeScreen([title, status, manualLink]);
+  const addStopLink = h("button", {
+    className: "back-link",
+    text: t("addStopLink"),
+    onclick: () => {
+      stopBoardingWatch();
+      state.screen = "add-stop";
+      render();
+    },
+  });
+
+  const screenEl = makeScreen([title, status, manualLink, addStopLink]);
   setTimeout(() => startBoardingWatch(status), 0);
   return screenEl;
+}
+
+// --- (テスト用)現在地をバス停として登録する画面 ---
+function renderAddStopScreen() {
+  const title = h("h1", { text: t("addStopTitle") });
+  const status = h("div", { className: "scan-status", text: "📍" });
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.placeholder = t("addStopNamePrompt");
+  nameInput.className = "text-input";
+
+  let currentPos = null;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      currentPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      status.textContent = `📍 ${currentPos.lat.toFixed(5)}, ${currentPos.lng.toFixed(5)}`;
+    },
+    () => {
+      status.textContent = t("locationDenied");
+    },
+    { enableHighAccuracy: true, timeout: 15000 }
+  );
+
+  const saveBtn = h("button", {
+    className: "primary-btn",
+    text: t("addStopSave"),
+    onclick: () => {
+      if (!currentPos || !nameInput.value.trim()) return;
+      addCustomStop({
+        id: "custom-" + Date.now(),
+        nameJa: nameInput.value.trim(),
+        nameEn: nameInput.value.trim(),
+        lat: currentPos.lat,
+        lng: currentPos.lng,
+      });
+      status.textContent = "✅ " + t("addStopSaved");
+      nameInput.value = "";
+    },
+  });
+
+  const back = h("button", { className: "back-link", text: "← " + t("back"), onclick: () => {
+    state.screen = "boarding-detect";
+    render();
+  }});
+
+  return makeScreen([title, status, nameInput, saveBtn, back]);
 }
 
 function startBoardingWatch(status) {
@@ -157,7 +217,7 @@ function startBoardingWatch(status) {
     status.textContent = t("locationDenied");
     return;
   }
-  boardDetector = createBoardingDetector(STOPS);
+  boardDetector = createBoardingDetector(getAllStops());
 
   boardWatchId = navigator.geolocation.watchPosition(
     (pos) => {
@@ -184,7 +244,7 @@ function startBoardingWatch(status) {
       }
 
       if (result.stopId) {
-        const stop = STOPS.find((s) => s.id === result.stopId);
+        const stop = getAllStops().find((s) => s.id === result.stopId);
         status.textContent = `${t("waitingNear")} ${stopLabel(stop)}`;
       }
     },
@@ -197,7 +257,7 @@ function startBoardingWatch(status) {
 
 // --- 画面3: 乗車中(降りる時にQRスキャンへ進む導線) ---
 function renderRidingScreen() {
-  const boardStop = STOPS.find((s) => s.id === state.currentStopId);
+  const boardStop = getAllStops().find((s) => s.id === state.currentStopId);
   const badge = h("div", {
     className: "current-stop-badge",
     text: `${t("boardedAt")}: ${stopLabel(boardStop)}`,
@@ -244,7 +304,7 @@ function stopScanLoop() {
 function parseStopQr(text) {
   const m = /^COINNAVI:STOP:(.+)$/.exec(text.trim());
   if (!m) return null;
-  const stop = STOPS.find((s) => s.id === m[1]);
+  const stop = getAllStops().find((s) => s.id === m[1]);
   return stop ? stop.id : null;
 }
 
@@ -379,10 +439,10 @@ function renderManualStopScreen(purpose) {
     contentEl = h("div", { className: "manual-tab-content" }, [prompt, grid]);
   } else {
     const list = h("div", { className: "stop-list" });
-    STOPS.filter((s) => s.id !== excludeId).forEach((stop) => {
+    getAllStops().filter((s) => s.id !== excludeId).forEach((stop) => {
       const btn = h("button", {
         className: "stop-btn",
-        text: stopLabel(stop),
+        text: stopLabel(stop) + (stop.custom ? " 📍" : ""),
         onclick: () => confirmStopSelection(purpose, stop.id),
       });
       list.appendChild(btn);
@@ -400,9 +460,12 @@ function renderManualStopScreen(purpose) {
 
 // --- 画面5: 運賃・コイン内訳表示 ---
 function renderFareScreen() {
-  const fare = getFare(state.currentStopId, state.destinationId);
+  const { fare, estimated } = getFareOrEstimate(state.currentStopId, state.destinationId);
   const title = h("h1", { text: t("fareIs") });
   const amount = h("div", { className: "fare-amount", text: `¥${fare?.toLocaleString() ?? "-"}` });
+  const estimatedNote = estimated
+    ? h("div", { className: "hint", text: t("estimatedFareNote") })
+    : null;
 
   const coinsTitle = h("div", { className: "hint", text: t("coinsNeeded") });
   const coinList = h("div", { className: "coin-list" });
@@ -436,12 +499,12 @@ function renderFareScreen() {
     render();
   }});
 
-  return makeScreen([title, amount, coinsTitle, coinList, showBtn, back]);
+  return makeScreen([title, amount, estimatedNote, coinsTitle, coinList, showBtn, back]);
 }
 
 // --- 画面6: 運転手向け提示画面(会話不要で見せるだけ) ---
 function renderDriverScreen() {
-  const fare = getFare(state.currentStopId, state.destinationId);
+  const { fare } = getFareOrEstimate(state.currentStopId, state.destinationId);
 
   const box = h("div", { className: "driver-screen" });
   const title = h("div", { text: I18N.ja.driverScreenTitle, className: "hint" });

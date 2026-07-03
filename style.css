@@ -70,6 +70,13 @@ h1 {
   gap: 10px;
 }
 
+.text-input {
+  padding: 14px;
+  border-radius: 12px;
+  border: 1px solid #ccc;
+  font-size: 15px;
+}
+
 .lang-btn, .stop-btn, .primary-btn {
   padding: 14px;
   border-radius: 12px;
