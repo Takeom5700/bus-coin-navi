@@ -10,6 +10,15 @@ const STOPS = [
   { id: "st05", name: { ja: "本厚木駅", en: "Hon-Atsugi Sta." }, lat: 35.4426, lng: 139.3636 },
 ];
 
+// 整理券番号(バス乗車時に取る番号札)と停留所の対応(デモ用・この路線の乗車順)
+// 実運用は事業者のGTFS-JP運賃データが持つ運賃区界(fare stage)番号に合わせる
+const SEIRIKEN_ROUTE_ORDER = ["st01", "st02", "st04", "st03", "st05"];
+
+function getStopBySeirikenNumber(number) {
+  const stopId = SEIRIKEN_ROUTE_ORDER[number - 1];
+  return STOPS.find((s) => s.id === stopId) || null;
+}
+
 // 2点間の距離(メートル)をハーバサイン公式で計算
 function distanceMeters(lat1, lng1, lat2, lng2) {
   const R = 6371000;
@@ -93,6 +102,10 @@ const I18N = {
     scanQr: "QRコードをスキャン",
     scanQrHint: "運転手が掲示するQRコードを読み取ってください",
     simulateScan: "（デモ）停留所を手動選択",
+    stopNameTab: "停留所名で選ぶ",
+    seirikenTab: "整理券番号で選ぶ",
+    seirikenPrompt: "整理券に書かれている番号を選んでください",
+    seirikenNumberLabel: "番号",
     currentStop: "現在の乗車停留所",
     selectDestination: "行き先を選んでください",
     fareIs: "運賃",
@@ -126,6 +139,10 @@ const I18N = {
     scanQr: "Scan QR Code",
     scanQrHint: "Scan the QR code shown by the driver",
     simulateScan: "(Demo) Select stop manually",
+    stopNameTab: "By stop name",
+    seirikenTab: "By ticket number",
+    seirikenPrompt: "Select the number printed on your boarding ticket",
+    seirikenNumberLabel: "No.",
     currentStop: "Current boarding stop",
     selectDestination: "Please select your destination",
     fareIs: "Fare",
@@ -159,6 +176,10 @@ const I18N = {
     scanQr: "扫描二维码",
     scanQrHint: "请扫描司机出示的二维码",
     simulateScan: "（演示）手动选择车站",
+    stopNameTab: "按车站名称选择",
+    seirikenTab: "按整理券号码选择",
+    seirikenPrompt: "请选择乘车券上印刷的号码",
+    seirikenNumberLabel: "号码",
     currentStop: "当前上车站",
     selectDestination: "请选择目的地",
     fareIs: "车费",
@@ -192,6 +213,10 @@ const I18N = {
     scanQr: "QR 코드 스캔",
     scanQrHint: "기사님이 제시하는 QR 코드를 스캔해 주세요",
     simulateScan: "(데모) 정류장 수동 선택",
+    stopNameTab: "정류장 이름으로 선택",
+    seirikenTab: "정리권 번호로 선택",
+    seirikenPrompt: "승차권에 인쇄된 번호를 선택해 주세요",
+    seirikenNumberLabel: "번호",
     currentStop: "현재 승차 정류장",
     selectDestination: "목적지를 선택해 주세요",
     fareIs: "요금",
@@ -225,6 +250,10 @@ const I18N = {
     scanQr: "Escanear código QR",
     scanQrHint: "Escanee el código QR que muestra el conductor",
     simulateScan: "(Demo) Seleccionar parada manualmente",
+    stopNameTab: "Por nombre de parada",
+    seirikenTab: "Por número de billete",
+    seirikenPrompt: "Seleccione el número impreso en su billete",
+    seirikenNumberLabel: "N.º",
     currentStop: "Parada de embarque actual",
     selectDestination: "Seleccione su destino",
     fareIs: "Tarifa",
@@ -258,6 +287,10 @@ const I18N = {
     scanQr: "Scanner le QR code",
     scanQrHint: "Scannez le QR code présenté par le chauffeur",
     simulateScan: "(Démo) Choisir l'arrêt manuellement",
+    stopNameTab: "Par nom d'arrêt",
+    seirikenTab: "Par numéro de ticket",
+    seirikenPrompt: "Sélectionnez le numéro imprimé sur votre ticket",
+    seirikenNumberLabel: "N°",
     currentStop: "Arrêt d'embarquement actuel",
     selectDestination: "Veuillez choisir votre destination",
     fareIs: "Tarif",
@@ -291,6 +324,10 @@ const I18N = {
     scanQr: "Scansiona codice QR",
     scanQrHint: "Scansiona il codice QR mostrato dall'autista",
     simulateScan: "(Demo) Seleziona fermata manualmente",
+    stopNameTab: "Per nome fermata",
+    seirikenTab: "Per numero di biglietto",
+    seirikenPrompt: "Seleziona il numero stampato sul tuo biglietto",
+    seirikenNumberLabel: "N.",
     currentStop: "Fermata di salita attuale",
     selectDestination: "Seleziona la destinazione",
     fareIs: "Tariffa",
@@ -324,6 +361,10 @@ const I18N = {
     scanQr: "مسح رمز QR",
     scanQrHint: "امسح رمز QR الذي يعرضه السائق",
     simulateScan: "(تجريبي) اختر المحطة يدويًا",
+    stopNameTab: "حسب اسم المحطة",
+    seirikenTab: "حسب رقم التذكرة",
+    seirikenPrompt: "اختر الرقم المطبوع على تذكرتك",
+    seirikenNumberLabel: "رقم",
     currentStop: "محطة الركوب الحالية",
     selectDestination: "الرجاء اختيار وجهتك",
     fareIs: "الأجرة",
@@ -357,6 +398,10 @@ const I18N = {
     scanQr: "Pindai kode QR",
     scanQrHint: "Pindai kode QR yang ditunjukkan oleh sopir",
     simulateScan: "(Demo) Pilih halte secara manual",
+    stopNameTab: "Berdasarkan nama halte",
+    seirikenTab: "Berdasarkan nomor tiket",
+    seirikenPrompt: "Pilih nomor yang tercetak pada tiket Anda",
+    seirikenNumberLabel: "No.",
     currentStop: "Halte naik saat ini",
     selectDestination: "Silakan pilih tujuan Anda",
     fareIs: "Tarif",
@@ -390,6 +435,10 @@ const I18N = {
     scanQr: "Imbas kod QR",
     scanQrHint: "Imbas kod QR yang ditunjukkan oleh pemandu",
     simulateScan: "(Demo) Pilih perhentian secara manual",
+    stopNameTab: "Mengikut nama perhentian",
+    seirikenTab: "Mengikut nombor tiket",
+    seirikenPrompt: "Pilih nombor yang dicetak pada tiket anda",
+    seirikenNumberLabel: "No.",
     currentStop: "Perhentian menaiki semasa",
     selectDestination: "Sila pilih destinasi anda",
     fareIs: "Tambang",

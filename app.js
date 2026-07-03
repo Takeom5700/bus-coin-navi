@@ -324,36 +324,78 @@ async function startCameraScan(video, status) {
 }
 
 // --- (共通)手動選択画面: purpose="board" or "dest" ---
+// タブで「停留所名で選ぶ」「整理券番号で選ぶ」を切り替えられる。
+// 整理券番号方式は、乗ってから/降りる直前にアプリに気づいた人でも、
+// GPS履歴を遡ることなく(プライバシーに配慮しつつ)乗車地点を特定できるようにするため。
+let manualTab = "name"; // "name" | "seiriken"
+
+function confirmStopSelection(purpose, stopId) {
+  if (purpose === "board") {
+    state.currentStopId = stopId;
+    state.screen = "riding";
+  } else {
+    state.destinationId = stopId;
+    state.screen = "fare";
+  }
+  render();
+}
+
 function renderManualStopScreen(purpose) {
   const title = h("h1", { text: t("simulateScan") });
-  const list = h("div", { className: "stop-list" });
+
+  const tabs = h("div", { className: "tab-row" });
+  const nameTabBtn = h("button", {
+    className: "tab-btn" + (manualTab === "name" ? " active" : ""),
+    text: t("stopNameTab"),
+    onclick: () => { manualTab = "name"; render(); },
+  });
+  const seirikenTabBtn = h("button", {
+    className: "tab-btn" + (manualTab === "seiriken" ? " active" : ""),
+    text: t("seirikenTab"),
+    onclick: () => { manualTab = "seiriken"; render(); },
+  });
+  tabs.appendChild(nameTabBtn);
+  tabs.appendChild(seirikenTabBtn);
 
   const excludeId = purpose === "dest" ? state.currentStopId : null;
+  let contentEl;
 
-  STOPS.filter((s) => s.id !== excludeId).forEach((stop) => {
-    const btn = h("button", {
-      className: "stop-btn",
-      text: stopLabel(stop),
-      onclick: () => {
-        if (purpose === "board") {
-          state.currentStopId = stop.id;
-          state.screen = "riding";
-        } else {
-          state.destinationId = stop.id;
-          state.screen = "fare";
-        }
-        render();
-      },
+  if (manualTab === "seiriken") {
+    const prompt = h("div", { className: "hint", text: t("seirikenPrompt") });
+    const grid = h("div", { className: "seiriken-grid" });
+    SEIRIKEN_ROUTE_ORDER.forEach((stopId, idx) => {
+      if (stopId === excludeId) return;
+      const num = idx + 1;
+      const btn = h("button", {
+        className: "seiriken-btn",
+        onclick: () => confirmStopSelection(purpose, stopId),
+      });
+      const numEl = h("div", { className: "seiriken-num", text: String(num) });
+      const nameEl = h("div", { className: "seiriken-name", text: stopLabel(STOPS.find((s) => s.id === stopId)) });
+      btn.appendChild(numEl);
+      btn.appendChild(nameEl);
+      grid.appendChild(btn);
     });
-    list.appendChild(btn);
-  });
+    contentEl = h("div", { className: "manual-tab-content" }, [prompt, grid]);
+  } else {
+    const list = h("div", { className: "stop-list" });
+    STOPS.filter((s) => s.id !== excludeId).forEach((stop) => {
+      const btn = h("button", {
+        className: "stop-btn",
+        text: stopLabel(stop),
+        onclick: () => confirmStopSelection(purpose, stop.id),
+      });
+      list.appendChild(btn);
+    });
+    contentEl = h("div", { className: "manual-tab-content" }, [list]);
+  }
 
   const back = h("button", { className: "back-link", text: "← " + t("back"), onclick: () => {
     state.screen = purpose === "board" ? "boarding-detect" : "scan-dest";
     render();
   }});
 
-  return makeScreen([title, list, back]);
+  return makeScreen([title, tabs, contentEl, back]);
 }
 
 // --- 画面5: 運賃・コイン内訳表示 ---

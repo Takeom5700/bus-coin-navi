@@ -1,17 +1,18 @@
 // 乗車停留所の自動判定ロジック
 //
 // 考え方:
-//  1. 速度が遅く(静止・徒歩程度)、かつ既知の停留所に近い間は
-//     「今そこで待機中」の候補として更新し続ける
+//  1. 「まだバスの走行速度に達していない」かつ「既知の停留所に近い」間は
+//     ずっと「今そこにいる」候補として更新し続ける
+//     (完全に静止していなくてもよい。駆け込み乗車のように走って
+//      バス停に到着し、そのまま即発車するケースも拾うため)
 //  2. 速度がバスの走行速度まで上がったことが連続して確認できたら、
-//     直前の"待機中だった停留所"を乗車停留所として確定・固定する
+//     直前の"候補だった停留所"を乗車停留所として確定・固定する
 //  3. GPSはこの瞬間に監視を止めるので、以後どの停留所の座標を
 //     通過しても上書きされない
 //
 // navigator.geolocationに直接依存しない純粋なロジックにして、
 // Node上でも合成データでテストできるようにしてある。
 
-const BOARD_STATIONARY_SPEED_MS = 1.5; // 約5.4km/h以下は「静止/徒歩」とみなす
 const BOARD_MOVING_SPEED_MS = 4.0;     // 約14.4km/h以上は「バス走行中」とみなす
 const BOARD_STOP_RADIUS_M = 120;       // 停留所とみなす半径(m)
 const BOARD_MOVING_CONFIRM_COUNT = 3;  // 走行速度が連続何回続いたら確定するか
@@ -48,7 +49,8 @@ function createBoardingDetector(stops) {
 
     const { stop, distanceMeters: dist } = findNearestStop(sample.lat, sample.lng);
 
-    if (speedMs < BOARD_STATIONARY_SPEED_MS && dist < BOARD_STOP_RADIUS_M) {
+    // 走行速度未満(徒歩〜駆け足程度も含む)で、かつ停留所の近くにいる間は候補を更新し続ける
+    if (speedMs < BOARD_MOVING_SPEED_MS && dist < BOARD_STOP_RADIUS_M) {
       lastStationaryStopId = stop.id;
       movingStreak = 0;
       return { status: "waiting", stopId: lastStationaryStopId, nearestStopId: stop.id, speedMs };
