@@ -1,11 +1,13 @@
 // コインナビ / Bus Coin Navi — プロトタイプ本体
+// 乗車停留所: GPSで自動判定 / 降車停留所: 運転手が提示するQRを読み取る
 // 状態管理はシンプルに素のJSで行う(フレームワーク不使用、デモ用)
 
 const state = {
   lang: null,
-  currentStopId: null,
-  destinationId: null,
-  screen: "language", // language | home | scan | destination | fare | driver
+  currentStopId: null, // 乗車停留所(自動判定)
+  destinationId: null, // 降車停留所(QRスキャンで確定)
+  screen: "language",
+  // language | boarding-detect | manual-board | riding | scan-dest | manual-dest | fare | driver
 };
 
 const root = document.getElementById("app");
@@ -28,17 +30,20 @@ function render() {
     case "language":
       screenEl = renderLanguageScreen();
       break;
-    case "home":
-      screenEl = renderHomeScreen();
+    case "boarding-detect":
+      screenEl = renderBoardingDetectScreen();
       break;
-    case "scan":
-      screenEl = renderScanScreen();
+    case "manual-board":
+      screenEl = renderManualStopScreen("board");
       break;
-    case "manual-select":
-      screenEl = renderManualSelectScreen();
+    case "riding":
+      screenEl = renderRidingScreen();
       break;
-    case "destination":
-      screenEl = renderDestinationScreen();
+    case "scan-dest":
+      screenEl = renderScanDestScreen();
+      break;
+    case "manual-dest":
+      screenEl = renderManualStopScreen("dest");
       break;
     case "fare":
       screenEl = renderFareScreen();
@@ -47,7 +52,7 @@ function render() {
       screenEl = renderDriverScreen();
       break;
     default:
-      screenEl = renderHomeScreen();
+      screenEl = renderBoardingDetectScreen();
   }
   root.appendChild(screenEl);
 }
@@ -88,6 +93,10 @@ function h(tag, opts = {}, children = []) {
   return el;
 }
 
+function stopLabel(stop) {
+  return stop ? (stop.name[state.lang] || stop.name.ja) : "?";
+}
+
 // --- 画面1: 言語選択 ---
 function renderLanguageScreen() {
   const title = h("h1", { text: "🪙 Bus Coin Navi" });
@@ -100,7 +109,7 @@ function renderLanguageScreen() {
       text: I18N[code].langName,
       onclick: () => {
         state.lang = code;
-        state.screen = "home";
+        state.screen = "boarding-detect";
         render();
       },
     });
@@ -110,29 +119,77 @@ function renderLanguageScreen() {
   return makeScreen([title, hint, grid]);
 }
 
-// --- 画面2: ホーム(QRスキャン導線) ---
-function renderHomeScreen() {
-  const title = h("h1", { text: t("scanQr") });
-  const hint = h("div", { className: "hint", text: t("scanQrHint") });
+// --- 画面2: 乗車停留所をGPSで自動判定 ---
+function renderBoardingDetectScreen() {
+  const title = h("h1", { text: t("detecting") });
+  const status = h("div", { className: "scan-status", text: "📍" });
 
-  const qrBox = h("div", { className: "qr-box", text: "▦", onclick: () => {
-    state.screen = "scan";
-    render();
-  }});
-
-  const scanBtn = h("button", {
-    className: "primary-btn",
-    text: t("scanQr"),
+  const manualLink = h("button", {
+    className: "back-link",
+    text: t("wrongStop"),
     onclick: () => {
-      state.screen = "scan";
+      state.screen = "manual-board";
       render();
     },
   });
 
-  return makeScreen([title, hint, qrBox, scanBtn]);
+  const screenEl = makeScreen([title, status, manualLink]);
+  setTimeout(() => detectBoardingStop(status), 0);
+  return screenEl;
 }
 
-// --- 画面3: QRコードを実カメラで読み取る ---
+function detectBoardingStop(status) {
+  if (!navigator.geolocation) {
+    status.textContent = t("locationDenied");
+    return;
+  }
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      const { stop } = findNearestStop(pos.coords.latitude, pos.coords.longitude);
+      state.currentStopId = stop.id;
+      state.screen = "riding";
+      render();
+    },
+    () => {
+      status.textContent = t("locationDenied");
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+}
+
+// --- 画面3: 乗車中(降りる時にQRスキャンへ進む導線) ---
+function renderRidingScreen() {
+  const boardStop = STOPS.find((s) => s.id === state.currentStopId);
+  const badge = h("div", {
+    className: "current-stop-badge",
+    text: `${t("boardedAt")}: ${stopLabel(boardStop)}`,
+  });
+
+  const title = h("h1", { text: t("ridingTitle") });
+  const hint = h("div", { className: "hint", text: t("ridingHint") });
+
+  const getOffBtn = h("button", {
+    className: "primary-btn",
+    text: t("getOffButton"),
+    onclick: () => {
+      state.screen = "scan-dest";
+      render();
+    },
+  });
+
+  const wrongLink = h("button", {
+    className: "back-link",
+    text: t("wrongStop"),
+    onclick: () => {
+      state.screen = "manual-board";
+      render();
+    },
+  });
+
+  return makeScreen([badge, title, hint, getOffBtn, wrongLink]);
+}
+
+// --- 画面4: 降車停留所をQRカメラで読み取る ---
 let scanStream = null;
 let scanRafId = null;
 
@@ -153,16 +210,16 @@ function parseStopQr(text) {
   return stop ? stop.id : null;
 }
 
-function onStopDetected(stopId) {
+function onDestinationDetected(stopId) {
   stopScanLoop();
-  state.currentStopId = stopId;
-  state.screen = "destination";
+  state.destinationId = stopId;
+  state.screen = "fare";
   render();
 }
 
-function renderScanScreen() {
+function renderScanDestScreen() {
   const title = h("h1", { text: t("scanQr") });
-  const video = h("video", { className: "" });
+  const video = h("video", {});
   video.id = "scan-video";
   video.setAttribute("playsinline", "true");
   video.setAttribute("muted", "true");
@@ -174,22 +231,19 @@ function renderScanScreen() {
     text: t("simulateScan"),
     onclick: () => {
       stopScanLoop();
-      state.screen = "manual-select";
+      state.screen = "manual-dest";
       render();
     },
   });
 
   const back = h("button", { className: "back-link", text: "← " + t("back"), onclick: () => {
     stopScanLoop();
-    state.screen = "home";
+    state.screen = "riding";
     render();
   }});
 
   const screenEl = makeScreen([title, video, status, manualToggle, back]);
-
-  // カメラ起動はDOM挿入後に行う(video要素が実体化してから)
   setTimeout(() => startCameraScan(video, status), 0);
-
   return screenEl;
 }
 
@@ -200,7 +254,7 @@ async function startCameraScan(video, status) {
     });
     video.srcObject = scanStream;
     await video.play();
-    status.textContent = t("scanQrHint");
+    status.textContent = t("scanDestHint");
 
     const canvas = document.createElement("canvas");
     const ctx = canvas.getContext("2d");
@@ -216,7 +270,7 @@ async function startCameraScan(video, status) {
         if (code) {
           const stopId = parseStopQr(code.data);
           if (stopId) {
-            onStopDetected(stopId);
+            onDestinationDetected(stopId);
             return;
           } else {
             status.textContent = "⚠ " + code.data;
@@ -231,18 +285,25 @@ async function startCameraScan(video, status) {
   }
 }
 
-// --- (フォールバック)カメラが使えない場合の手動選択画面 ---
-function renderManualSelectScreen() {
+// --- (共通)手動選択画面: purpose="board" or "dest" ---
+function renderManualStopScreen(purpose) {
   const title = h("h1", { text: t("simulateScan") });
   const list = h("div", { className: "stop-list" });
 
-  STOPS.forEach((stop) => {
+  const excludeId = purpose === "dest" ? state.currentStopId : null;
+
+  STOPS.filter((s) => s.id !== excludeId).forEach((stop) => {
     const btn = h("button", {
       className: "stop-btn",
-      text: stop.name[state.lang] || stop.name.ja,
+      text: stopLabel(stop),
       onclick: () => {
-        state.currentStopId = stop.id;
-        state.screen = "destination";
+        if (purpose === "board") {
+          state.currentStopId = stop.id;
+          state.screen = "riding";
+        } else {
+          state.destinationId = stop.id;
+          state.screen = "fare";
+        }
         render();
       },
     });
@@ -250,43 +311,11 @@ function renderManualSelectScreen() {
   });
 
   const back = h("button", { className: "back-link", text: "← " + t("back"), onclick: () => {
-    state.screen = "scan";
+    state.screen = purpose === "board" ? "boarding-detect" : "scan-dest";
     render();
   }});
 
   return makeScreen([title, list, back]);
-}
-
-// --- 画面4: 行き先選択 ---
-function renderDestinationScreen() {
-  const currentStop = STOPS.find((s) => s.id === state.currentStopId);
-  const badge = h("div", {
-    className: "current-stop-badge",
-    text: `${t("currentStop")}: ${currentStop.name[state.lang] || currentStop.name.ja}`,
-  });
-
-  const title = h("h1", { text: t("selectDestination") });
-  const list = h("div", { className: "stop-list" });
-
-  STOPS.filter((s) => s.id !== state.currentStopId).forEach((stop) => {
-    const btn = h("button", {
-      className: "stop-btn",
-      text: stop.name[state.lang] || stop.name.ja,
-      onclick: () => {
-        state.destinationId = stop.id;
-        state.screen = "fare";
-        render();
-      },
-    });
-    list.appendChild(btn);
-  });
-
-  const back = h("button", { className: "back-link", text: "← " + t("back"), onclick: () => {
-    state.screen = "scan";
-    render();
-  }});
-
-  return makeScreen([badge, title, list, back]);
 }
 
 // --- 画面5: 運賃・コイン内訳表示 ---
@@ -323,7 +352,7 @@ function renderFareScreen() {
   });
 
   const back = h("button", { className: "back-link", text: "← " + t("back"), onclick: () => {
-    state.screen = "destination";
+    state.screen = "scan-dest";
     render();
   }});
 

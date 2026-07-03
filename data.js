@@ -1,14 +1,40 @@
 // コインナビ / Bus Coin Navi — デモ用モックデータ
 // 実運用では神奈川中央交通のODPT運賃・停留所・路線データ(GTFS-JP)に差し替える
 
-// 停留所リスト(デモ用・神奈川中央交通エリアを想定した架空区間)
+// 停留所リスト(デモ用・神奈川中央交通エリアを想定。緯度経度は実際の最寄駅付近の座標)
 const STOPS = [
-  { id: "st01", name: { ja: "橋本駅北口", en: "Hashimoto Sta. North" } },
-  { id: "st02", name: { ja: "相模原駅前", en: "Sagamihara Sta." } },
-  { id: "st03", name: { ja: "町田バスセンター", en: "Machida Bus Center" } },
-  { id: "st04", name: { ja: "淵野辺駅", en: "Fuchinobe Sta." } },
-  { id: "st05", name: { ja: "本厚木駅", en: "Hon-Atsugi Sta." } },
+  { id: "st01", name: { ja: "橋本駅北口", en: "Hashimoto Sta. North" }, lat: 35.5936, lng: 139.3454 },
+  { id: "st02", name: { ja: "相模原駅前", en: "Sagamihara Sta." }, lat: 35.5720, lng: 139.3735 },
+  { id: "st03", name: { ja: "町田バスセンター", en: "Machida Bus Center" }, lat: 35.5461, lng: 139.4472 },
+  { id: "st04", name: { ja: "淵野辺駅", en: "Fuchinobe Sta." }, lat: 35.5661, lng: 139.3948 },
+  { id: "st05", name: { ja: "本厚木駅", en: "Hon-Atsugi Sta." }, lat: 35.4426, lng: 139.3636 },
 ];
+
+// 2点間の距離(メートル)をハーバサイン公式で計算
+function distanceMeters(lat1, lng1, lat2, lng2) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+// 現在地から最も近い停留所を返す
+function findNearestStop(lat, lng) {
+  let nearest = null;
+  let minDist = Infinity;
+  for (const stop of STOPS) {
+    const d = distanceMeters(lat, lng, stop.lat, stop.lng);
+    if (d < minDist) {
+      minDist = d;
+      nearest = stop;
+    }
+  }
+  return { stop: nearest, distanceMeters: minDist };
+}
 
 // 運賃表(デモ用モック。stop間の片道運賃、円)
 // 実運用は ckan.odpt.org の「神奈川中央交通 バス運賃情報」を読み込む
@@ -55,9 +81,17 @@ const I18N = {
     langName: "日本語",
     dir: "ltr",
     selectLanguage: "言語を選んでください",
+    detecting: "現在地から乗車停留所を確認しています…",
+    boardedAt: "乗車停留所",
+    wrongStop: "違う場合はこちら（手動で選ぶ）",
+    ridingTitle: "バスにご乗車中です",
+    ridingHint: "降りるときは、運転手が提示するQRコードを読み取ってください",
+    getOffButton: "降ります（QRを読み取る）",
+    scanDestHint: "降りる停留所で、運転手が提示するQRコードを読み取ってください",
+    locationDenied: "位置情報を取得できませんでした。手動で選択してください",
     scanQr: "QRコードをスキャン",
     scanQrHint: "運転手が掲示するQRコードを読み取ってください",
-    simulateScan: "（デモ）現在の停留所を選択",
+    simulateScan: "（デモ）停留所を手動選択",
     currentStop: "現在の乗車停留所",
     selectDestination: "行き先を選んでください",
     fareIs: "運賃",
@@ -79,9 +113,17 @@ const I18N = {
     langName: "English",
     dir: "ltr",
     selectLanguage: "Please select your language",
+    detecting: "Detecting your boarding stop from your location…",
+    boardedAt: "Boarding stop",
+    wrongStop: "Not correct? Select manually",
+    ridingTitle: "You are riding the bus",
+    ridingHint: "When you get off, scan the QR code shown by the driver",
+    getOffButton: "Get off (Scan QR)",
+    scanDestHint: "At the stop where you get off, scan the QR code shown by the driver",
+    locationDenied: "Could not get your location. Please select manually",
     scanQr: "Scan QR Code",
     scanQrHint: "Scan the QR code shown by the driver",
-    simulateScan: "(Demo) Select current stop",
+    simulateScan: "(Demo) Select stop manually",
     currentStop: "Current boarding stop",
     selectDestination: "Please select your destination",
     fareIs: "Fare",
@@ -103,9 +145,17 @@ const I18N = {
     langName: "中文（简体）",
     dir: "ltr",
     selectLanguage: "请选择您的语言",
+    detecting: "正在根据您的位置确认上车站…",
+    boardedAt: "上车站",
+    wrongStop: "不正确？手动选择",
+    ridingTitle: "您正在乘坐巴士",
+    ridingHint: "下车时，请扫描司机出示的二维码",
+    getOffButton: "下车（扫描二维码）",
+    scanDestHint: "在您下车的车站，请扫描司机出示的二维码",
+    locationDenied: "无法获取您的位置，请手动选择",
     scanQr: "扫描二维码",
     scanQrHint: "请扫描司机出示的二维码",
-    simulateScan: "（演示）选择当前车站",
+    simulateScan: "（演示）手动选择车站",
     currentStop: "当前上车站",
     selectDestination: "请选择目的地",
     fareIs: "车费",
@@ -127,9 +177,17 @@ const I18N = {
     langName: "한국어",
     dir: "ltr",
     selectLanguage: "언어를 선택해 주세요",
+    detecting: "현재 위치로 승차 정류장을 확인하고 있습니다…",
+    boardedAt: "승차 정류장",
+    wrongStop: "다른가요? 수동으로 선택",
+    ridingTitle: "버스에 탑승 중입니다",
+    ridingHint: "내리실 때, 기사님이 제시하는 QR 코드를 스캔해 주세요",
+    getOffButton: "하차 (QR 스캔)",
+    scanDestHint: "내리는 정류장에서 기사님이 제시하는 QR 코드를 스캔해 주세요",
+    locationDenied: "위치 정보를 가져올 수 없습니다. 수동으로 선택해 주세요",
     scanQr: "QR 코드 스캔",
     scanQrHint: "기사님이 제시하는 QR 코드를 스캔해 주세요",
-    simulateScan: "(데모) 현재 정류장 선택",
+    simulateScan: "(데모) 정류장 수동 선택",
     currentStop: "현재 승차 정류장",
     selectDestination: "목적지를 선택해 주세요",
     fareIs: "요금",
@@ -151,9 +209,17 @@ const I18N = {
     langName: "Español",
     dir: "ltr",
     selectLanguage: "Seleccione su idioma",
+    detecting: "Detectando su parada de embarque según su ubicación…",
+    boardedAt: "Parada de embarque",
+    wrongStop: "¿No es correcto? Seleccionar manualmente",
+    ridingTitle: "Está viajando en el autobús",
+    ridingHint: "Al bajar, escanee el código QR que muestra el conductor",
+    getOffButton: "Bajar (Escanear QR)",
+    scanDestHint: "En la parada donde baja, escanee el código QR que muestra el conductor",
+    locationDenied: "No se pudo obtener su ubicación. Seleccione manualmente",
     scanQr: "Escanear código QR",
     scanQrHint: "Escanee el código QR que muestra el conductor",
-    simulateScan: "(Demo) Seleccionar parada actual",
+    simulateScan: "(Demo) Seleccionar parada manualmente",
     currentStop: "Parada de embarque actual",
     selectDestination: "Seleccione su destino",
     fareIs: "Tarifa",
@@ -175,9 +241,17 @@ const I18N = {
     langName: "Français",
     dir: "ltr",
     selectLanguage: "Veuillez choisir votre langue",
+    detecting: "Détection de votre arrêt d'embarquement selon votre position…",
+    boardedAt: "Arrêt d'embarquement",
+    wrongStop: "Incorrect ? Sélectionner manuellement",
+    ridingTitle: "Vous êtes dans le bus",
+    ridingHint: "Pour descendre, scannez le QR code présenté par le chauffeur",
+    getOffButton: "Descendre (Scanner QR)",
+    scanDestHint: "À l'arrêt où vous descendez, scannez le QR code présenté par le chauffeur",
+    locationDenied: "Impossible d'obtenir votre position. Sélectionnez manuellement",
     scanQr: "Scanner le QR code",
     scanQrHint: "Scannez le QR code présenté par le chauffeur",
-    simulateScan: "(Démo) Choisir l'arrêt actuel",
+    simulateScan: "(Démo) Choisir l'arrêt manuellement",
     currentStop: "Arrêt d'embarquement actuel",
     selectDestination: "Veuillez choisir votre destination",
     fareIs: "Tarif",
@@ -199,9 +273,17 @@ const I18N = {
     langName: "Italiano",
     dir: "ltr",
     selectLanguage: "Seleziona la tua lingua",
+    detecting: "Rilevamento della fermata di salita in base alla posizione…",
+    boardedAt: "Fermata di salita",
+    wrongStop: "Non corretto? Seleziona manualmente",
+    ridingTitle: "Sei a bordo dell'autobus",
+    ridingHint: "Per scendere, scansiona il codice QR mostrato dall'autista",
+    getOffButton: "Scendere (Scansiona QR)",
+    scanDestHint: "Alla fermata in cui scendi, scansiona il codice QR mostrato dall'autista",
+    locationDenied: "Impossibile rilevare la posizione. Seleziona manualmente",
     scanQr: "Scansiona codice QR",
     scanQrHint: "Scansiona il codice QR mostrato dall'autista",
-    simulateScan: "(Demo) Seleziona fermata attuale",
+    simulateScan: "(Demo) Seleziona fermata manualmente",
     currentStop: "Fermata di salita attuale",
     selectDestination: "Seleziona la destinazione",
     fareIs: "Tariffa",
@@ -223,9 +305,17 @@ const I18N = {
     langName: "العربية",
     dir: "rtl",
     selectLanguage: "الرجاء اختيار لغتك",
+    detecting: "جارٍ تحديد محطة الركوب بناءً على موقعك…",
+    boardedAt: "محطة الركوب",
+    wrongStop: "غير صحيح؟ اختر يدويًا",
+    ridingTitle: "أنت الآن على متن الحافلة",
+    ridingHint: "عند النزول، امسح رمز QR الذي يعرضه السائق",
+    getOffButton: "النزول (مسح QR)",
+    scanDestHint: "في المحطة التي تنزل فيها، امسح رمز QR الذي يعرضه السائق",
+    locationDenied: "تعذر تحديد موقعك. الرجاء الاختيار يدويًا",
     scanQr: "مسح رمز QR",
     scanQrHint: "امسح رمز QR الذي يعرضه السائق",
-    simulateScan: "(تجريبي) اختر المحطة الحالية",
+    simulateScan: "(تجريبي) اختر المحطة يدويًا",
     currentStop: "محطة الركوب الحالية",
     selectDestination: "الرجاء اختيار وجهتك",
     fareIs: "الأجرة",
@@ -247,9 +337,17 @@ const I18N = {
     langName: "Bahasa Indonesia",
     dir: "ltr",
     selectLanguage: "Silakan pilih bahasa Anda",
+    detecting: "Mendeteksi halte naik Anda berdasarkan lokasi…",
+    boardedAt: "Halte naik",
+    wrongStop: "Tidak tepat? Pilih secara manual",
+    ridingTitle: "Anda sedang naik bus",
+    ridingHint: "Saat turun, pindai kode QR yang ditunjukkan oleh sopir",
+    getOffButton: "Turun (Pindai QR)",
+    scanDestHint: "Di halte tempat Anda turun, pindai kode QR yang ditunjukkan oleh sopir",
+    locationDenied: "Tidak dapat mendeteksi lokasi Anda. Silakan pilih secara manual",
     scanQr: "Pindai kode QR",
     scanQrHint: "Pindai kode QR yang ditunjukkan oleh sopir",
-    simulateScan: "(Demo) Pilih halte saat ini",
+    simulateScan: "(Demo) Pilih halte secara manual",
     currentStop: "Halte naik saat ini",
     selectDestination: "Silakan pilih tujuan Anda",
     fareIs: "Tarif",
@@ -271,9 +369,17 @@ const I18N = {
     langName: "Bahasa Melayu",
     dir: "ltr",
     selectLanguage: "Sila pilih bahasa anda",
+    detecting: "Mengesan perhentian menaiki anda berdasarkan lokasi…",
+    boardedAt: "Perhentian menaiki",
+    wrongStop: "Tidak betul? Pilih secara manual",
+    ridingTitle: "Anda sedang menaiki bas",
+    ridingHint: "Semasa turun, imbas kod QR yang ditunjukkan oleh pemandu",
+    getOffButton: "Turun (Imbas QR)",
+    scanDestHint: "Di perhentian tempat anda turun, imbas kod QR yang ditunjukkan oleh pemandu",
+    locationDenied: "Tidak dapat mengesan lokasi anda. Sila pilih secara manual",
     scanQr: "Imbas kod QR",
     scanQrHint: "Imbas kod QR yang ditunjukkan oleh pemandu",
-    simulateScan: "(Demo) Pilih perhentian semasa",
+    simulateScan: "(Demo) Pilih perhentian secara manual",
     currentStop: "Perhentian menaiki semasa",
     selectDestination: "Sila pilih destinasi anda",
     fareIs: "Tambang",
