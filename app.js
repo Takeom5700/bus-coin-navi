@@ -120,6 +120,19 @@ function renderLanguageScreen() {
 }
 
 // --- 画面2: 乗車停留所をGPSで自動判定 ---
+// 「停留所付近で静止→バスの走行速度まで加速」を検知し、
+// 直前に静止していた停留所を乗車地点として確定する(boarding-detector.js)
+let boardWatchId = null;
+let boardDetector = null;
+
+function stopBoardingWatch() {
+  if (boardWatchId != null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(boardWatchId);
+  }
+  boardWatchId = null;
+  boardDetector = null;
+}
+
 function renderBoardingDetectScreen() {
   const title = h("h1", { text: t("detecting") });
   const status = h("div", { className: "scan-status", text: "📍" });
@@ -128,32 +141,57 @@ function renderBoardingDetectScreen() {
     className: "back-link",
     text: t("wrongStop"),
     onclick: () => {
+      stopBoardingWatch();
       state.screen = "manual-board";
       render();
     },
   });
 
   const screenEl = makeScreen([title, status, manualLink]);
-  setTimeout(() => detectBoardingStop(status), 0);
+  setTimeout(() => startBoardingWatch(status), 0);
   return screenEl;
 }
 
-function detectBoardingStop(status) {
+function startBoardingWatch(status) {
   if (!navigator.geolocation) {
     status.textContent = t("locationDenied");
     return;
   }
-  navigator.geolocation.getCurrentPosition(
+  boardDetector = createBoardingDetector(STOPS);
+
+  boardWatchId = navigator.geolocation.watchPosition(
     (pos) => {
-      const { stop } = findNearestStop(pos.coords.latitude, pos.coords.longitude);
-      state.currentStopId = stop.id;
-      state.screen = "riding";
-      render();
+      const result = boardDetector.feed({
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude,
+        t: pos.timestamp,
+        speed: pos.coords.speed,
+      });
+
+      if (result.status === "locked") {
+        stopBoardingWatch();
+        state.currentStopId = result.stopId;
+        state.screen = "riding";
+        render();
+        return;
+      }
+
+      if (result.status === "no-candidate") {
+        stopBoardingWatch();
+        state.screen = "manual-board";
+        render();
+        return;
+      }
+
+      if (result.stopId) {
+        const stop = STOPS.find((s) => s.id === result.stopId);
+        status.textContent = `${t("waitingNear")} ${stopLabel(stop)}`;
+      }
     },
     () => {
       status.textContent = t("locationDenied");
     },
-    { enableHighAccuracy: true, timeout: 8000 }
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
   );
 }
 
