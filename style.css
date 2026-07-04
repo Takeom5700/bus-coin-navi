@@ -200,6 +200,17 @@ h1 {
   justify-content: center;
 }
 
+.coin-img {
+  max-width: 48px;
+  max-height: 48px;
+  object-fit: contain;
+}
+
+.coin-img-bill {
+  max-width: 60px;
+  max-height: 36px;
+}
+
 .tab-row {
   display: flex;
   gap: 8px;
