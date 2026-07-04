@@ -53,7 +53,9 @@ function applyDriverLang(lang) {
 
 function drawQr(stopId) {
   qrWrap.innerHTML = "";
-  const payload = `COINNAVI:STOP:${stopId}`;
+  const stop = getAllStops().find((s) => s.id === stopId);
+  if (!stop) return;
+  const payload = buildStopQrPayload(stop);
   const qr = qrcode(0, "M"); // type 0 = auto, error correction level M
   qr.addData(payload);
   qr.make();

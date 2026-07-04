@@ -355,12 +355,29 @@ function stopScanLoop() {
   }
 }
 
-// QRコードの中身のフォーマット: "COINNAVI:STOP:<stopId>"
+// QRコードには停留所の名前・座標そのものが埋め込まれているので、
+// 読み取った端末がその停留所を事前に知らなくても、その場で復元・登録できる
+// (qr-payload.jsのparseStopQrPayloadを利用。オンライン同期は不要)
 function parseStopQr(text) {
-  const m = /^COINNAVI:STOP:(.+)$/.exec(text.trim());
-  if (!m) return null;
-  const stop = getAllStops().find((s) => s.id === m[1]);
-  return stop ? stop.id : null;
+  const parsed = parseStopQrPayload(text);
+  if (!parsed) return null;
+
+  const existing = getAllStops().find((s) => s.id === parsed.id);
+  if (existing) return existing.id;
+
+  // 未知の停留所で、かつ座標情報がQRに含まれていれば、その場でカスタム停留所として登録する
+  if (typeof parsed.lat === "number" && typeof parsed.lng === "number") {
+    addCustomStop({
+      id: parsed.id,
+      nameJa: parsed.nameJa || parsed.id,
+      nameEn: parsed.nameEn || parsed.nameJa || parsed.id,
+      lat: parsed.lat,
+      lng: parsed.lng,
+    });
+    return parsed.id;
+  }
+
+  return null;
 }
 
 function onDestinationDetected(stopId) {
