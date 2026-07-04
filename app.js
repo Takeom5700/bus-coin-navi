@@ -396,6 +396,14 @@ function renderScanDestScreen() {
 
   const status = h("div", { className: "scan-status", text: "…" });
 
+  const confirmBox = h("div", { className: "add-here-prompt" });
+
+  const getOffHereBtn = h("button", {
+    className: "primary-btn",
+    text: t("getOffHereButton"),
+    onclick: () => confirmAlightByGps(confirmBox),
+  });
+
   const manualToggle = h("button", {
     className: "back-link",
     text: t("simulateScan"),
@@ -412,9 +420,61 @@ function renderScanDestScreen() {
     render();
   }});
 
-  const screenEl = makeScreen([title, video, status, manualToggle, back]);
+  const screenEl = makeScreen([title, video, status, getOffHereBtn, confirmBox, manualToggle, back]);
   setTimeout(() => startCameraScan(video, status), 0);
   return screenEl;
+}
+
+// --- 「ここで降車する」ボタン: GPSで現在地を取得し、最寄り停留所を確認してから確定する ---
+function confirmAlightByGps(confirmBox) {
+  confirmBox.innerHTML = "";
+  const loading = h("div", { className: "hint", text: t("gettingLocation") });
+  confirmBox.appendChild(loading);
+
+  if (!navigator.geolocation) {
+    confirmBox.innerHTML = "";
+    confirmBox.appendChild(h("div", { className: "hint", text: t("locationDenied") }));
+    return;
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      lastKnownPos = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const candidates = getAllStops().filter((s) => s.id !== state.currentStopId);
+      const { stop, distanceMeters: dist } = findNearestStop(lastKnownPos.lat, lastKnownPos.lng, candidates);
+
+      confirmBox.innerHTML = "";
+      if (!stop || dist > NEARBY_THRESHOLD_M) {
+        confirmBox.appendChild(h("div", { className: "hint", text: t("noNearbyStop") }));
+        return;
+      }
+
+      const question = h("div", {
+        className: "hint",
+        text: `${t("confirmAlightPrefix")}${stopLabel(stop)}${t("confirmAlightSuffix")}`,
+      });
+      const btnRow = h("div", { className: "tab-row" });
+      const yesBtn = h("button", {
+        className: "primary-btn",
+        text: t("yesLabel"),
+        onclick: () => onDestinationDetected(stop.id),
+      });
+      const noBtn = h("button", {
+        className: "tab-btn",
+        text: t("noLabel"),
+        onclick: () => { confirmBox.innerHTML = ""; },
+      });
+      btnRow.appendChild(yesBtn);
+      btnRow.appendChild(noBtn);
+      confirmBox.appendChild(question);
+      confirmBox.appendChild(btnRow);
+    },
+    () => {
+      confirmBox.innerHTML = "";
+      confirmBox.appendChild(h("div", { className: "hint", text: t("locationDenied") }));
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
 }
 
 async function startCameraScan(video, status) {
